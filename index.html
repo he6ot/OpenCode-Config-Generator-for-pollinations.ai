@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -30,8 +30,8 @@
 <body>
   <div class="lang-switcher">
     <select id="langSelect" onchange="switchLang(this.value)">
+      <option value="en" selected>English</option>
       <option value="ru">Русский</option>
-      <option value="en">English</option>
     </select>
   </div>
   <div class="container">
@@ -304,6 +304,7 @@
     }
 
     renderModels();
+    switchLang('en');
   </script>
 </body>
 </html>
