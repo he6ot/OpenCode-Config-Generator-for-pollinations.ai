@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenCode Config Generator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: monospace; background: #1a1a1a; color: #e0e0e0; padding: 20px; }
+    .container { max-width: 900px; margin: 0 auto; }
+    .lang-switcher { position: absolute; top: 20px; right: 20px; }
+    .lang-switcher select { width: auto; padding: 5px 10px; background: #2a2a2a; border: 1px solid #444; color: #e0e0e0; border-radius: 4px; cursor: pointer; }
+    h1 { color: #7c3aed; margin-bottom: 20px; }
+    label { display: block; margin: 10px 0 5px; color: #aaa; }
+    input, select { width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #e0e0e0; border-radius: 4px; font-family: monospace; }
+    .models { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin: 15px 0; }
+    .model-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px; background: #2a2a2a; border-radius: 4px; cursor: pointer; }
+    .model-item:hover { background: #3a3a3a; }
+    .model-item input { width: auto; cursor: pointer; }
+    .model-item.selected { background: #3a2a5a; border: 1px solid #7c3aed; }
+    button { padding: 10px 20px; background: #7c3aed; color: white; border: none; border-radius: 4px; cursor: pointer; font-family: monospace; margin-top: 10px; }
+    button:hover { background: #6d28d9; }
+    .output { margin-top: 20px; }
+    pre { background: #2a2a2a; padding: 15px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
+    .copy-btn { background: #059669; margin-left: 10px; }
+    .copy-btn:hover { background: #047857; }
+    .header { display: flex; align-items: center; justify-content: space-between; }
+  </style>
+</head>
+<body>
+  <div class="lang-switcher">
+    <select id="langSelect" onchange="switchLang(this.value)">
+      <option value="ru">Русский</option>
+      <option value="en">English</option>
+    </select>
+  </div>
+  <div class="container">
+    <h1 id="title">OpenCode Config Generator for pollinations.ai</h1>
+
+    <label id="labelApiKey">API Key (для auth.json):</label>
+    <input type="text" id="apiKey" placeholder="Введите ваш API ключ">
+
+    <label id="labelModels">Выберите модели:</label>
+    <div style="margin-bottom:10px;">
+      <button id="btnSelectAll" onclick="selectAll()">Выбрать все</button>
+      <button id="btnDeselectAll" onclick="deselectAll()">Снять выбор</button>
+    </div>
+    <div class="models" id="modelsList"></div>
+
+    <button id="btnAddCustom" onclick="addCustomModel()">+ Добавить свою модель</button>
+    <button id="btnGenConfig" onclick="generateConfig()">Сгенерировать opencode.jsonc</button>
+    <button id="btnGenAuth" onclick="generateAuth()">Сгенерировать auth.json</button>
+
+    <div class="output" id="outputConfig" style="display:none;">
+      <div class="header">
+        <h2 id="h2Config">opencode.jsonc:</h2>
+        <button class="copy-btn" id="copyConfigBtn" onclick="copyConfig()">Скопировать</button>
+        <button class="copy-btn" id="downloadConfigBtn" onclick="downloadConfig()">Скачать</button>
+      </div>
+      <pre id="configOutput"></pre>
+    </div>
+
+    <div class="output" id="outputAuth" style="display:none;">
+      <div class="header">
+        <h2 id="h2Auth">auth.json:</h2>
+        <button class="copy-btn" id="copyAuthBtn" onclick="copyAuth()">Скопировать</button>
+        <button class="copy-btn" id="downloadAuthBtn" onclick="downloadAuth()">Скачать</button>
+      </div>
+      <pre id="authOutput"></pre>
+    </div>
+  </div>
+
+  <script>
+    const translations = {
+      ru: {
+        title: "OpenCode Config Generator для pollinations.ai",
+        labelApiKey: "API Key (для auth.json):",
+        placeholderApiKey: "Введите ваш API ключ",
+        labelModels: "Выберите модели:",
+        btnAddCustom: "+ Добавить свою модель",
+        btnSelectAll: "Выбрать все",
+        btnDeselectAll: "Снять выбор",
+        btnGenConfig: "Сгенерировать opencode.jsonc",
+        btnGenAuth: "Сгенерировать auth.json",
+        h2Config: "opencode.jsonc:",
+        h2Auth: "auth.json:",
+        copy: "Скопировать",
+        download: "Скачать",
+        copied: "Скопировано!",
+        addModelIdPrompt: "ID модели (например: my-model):",
+        addModelNamePrompt: "Название модели (например: My Model):"
+      },
+      en: {
+        title: "OpenCode Config Generator for pollinations.ai",
+        labelApiKey: "API Key (for auth.json):",
+        placeholderApiKey: "Enter your API key",
+        labelModels: "Select models:",
+        btnAddCustom: "+ Add custom model",
+        btnSelectAll: "Select all",
+        btnDeselectAll: "Deselect all",
+        btnGenConfig: "Generate opencode.jsonc",
+        btnGenAuth: "Generate auth.json",
+        h2Config: "opencode.jsonc:",
+        h2Auth: "auth.json:",
+        copy: "Copy",
+        download: "Download",
+        copied: "Copied!",
+        addModelIdPrompt: "Model ID (e.g.: my-model):",
+        addModelNamePrompt: "Model name (e.g.: My Model):"
+      }
+    };
+
+    let currentLang = 'ru';
+
+    function switchLang(lang) {
+      currentLang = lang;
+      const t = translations[lang];
+      document.getElementById('title').textContent = t.title;
+      document.getElementById('labelApiKey').textContent = t.labelApiKey;
+      document.getElementById('apiKey').placeholder = t.placeholderApiKey;
+      document.getElementById('labelModels').textContent = t.labelModels;
+      document.getElementById('btnAddCustom').textContent = t.btnAddCustom;
+      document.getElementById('btnSelectAll').textContent = t.btnSelectAll;
+      document.getElementById('btnDeselectAll').textContent = t.btnDeselectAll;
+      document.getElementById('btnGenConfig').textContent = t.btnGenConfig;
+      document.getElementById('btnGenAuth').textContent = t.btnGenAuth;
+      document.getElementById('h2Config').textContent = t.h2Config;
+      document.getElementById('h2Auth').textContent = t.h2Auth;
+      document.getElementById('copyConfigBtn').textContent = t.copy;
+      document.getElementById('downloadConfigBtn').textContent = t.download;
+      document.getElementById('copyAuthBtn').textContent = t.copy;
+      document.getElementById('downloadAuthBtn').textContent = t.download;
+    }
+
+    const availableModels = [
+      { id: 'kimi-k2.6', name: 'Moonshot Kimi K2.6' },
+      { id: 'minimax', name: 'MiniMax M2.7' },
+      { id: 'qwen-safety', name: 'Qwen3Guard 8B' },
+      { id: 'nova-fast', name: 'Nova Micro' },
+      { id: 'nova', name: 'Nova 2 Lite' },
+      { id: 'mistral', name: 'Mistral Small 3.2' },
+      { id: 'qwen-coder', name: 'Qwen3 Coder 30B' },
+      { id: 'openai', name: 'GPT-5.4 Nano' },
+      { id: 'gemini-fast', name: 'Gemini 2.5 Flash Lite' },
+      { id: 'openai-fast', name: 'GPT-5 Nano' },
+      { id: 'gemini-search', name: 'Google Gemini 2.5 Flash Lite Search' },
+      { id: 'grok', name: 'Grok 4.20 Non-Reasoning' },
+      { id: 'qwen-vision', name: 'Qwen3 VL 30B A3B Thinking' },
+      { id: 'gemini-flash-lite-3.1', name: 'Gemini 3.1 Flash Lite' },
+      { id: 'perplexity-fast', name: 'Perplexity Sonar' },
+      { id: 'openai-audio', name: 'GPT Audio Mini' },
+      { id: 'midijourney', name: 'MIDIjourney' },
+      { id: 'claude-fast', name: 'Claude Haiku 4.5' },
+      { id: 'deepseek', name: 'DeepSeek V4 Flash (Lite)' },
+      { id: 'perplexity-reasoning', name: 'Perplexity Sonar Reasoning' },
+      { id: 'kimi', name: 'Moonshot Kimi K2.5' },
+      { id: 'mistral-large', name: 'Mistral Large 3' },
+      { id: 'gemini', name: 'Gemini 3 Flash' },
+      { id: 'glm', name: 'Z.ai GLM-5.1' },
+      { id: 'qwen-large', name: 'Qwen3.6 Plus' },
+      { id: 'openai-large', name: 'GPT-5.4' },
+      { id: 'deepseek-pro', name: 'DeepSeek V4 Pro' },
+      { id: 'grok-large', name: 'Grok 4.20 Reasoning' },
+      { id: 'qwen-coder-large', name: 'Qwen3 Coder Next' },
+      { id: 'openai-audio-large', name: 'GPT Audio 1.5' },
+      { id: 'midijourney-large', name: 'MIDIjourney Large' },
+      { id: 'claude', name: 'Claude Sonnet 4.6' },
+      { id: 'gemini-large', name: 'Gemini 3.1 Pro' },
+      { id: 'claude-large', name: 'Claude Opus 4.6' },
+      { id: 'claude-opus-4.7', name: 'Claude Opus 4.7' },
+      { id: 'polly', name: 'Polly by @Itachi-1824' }
+    ];
+
+    let selectedModels = ['kimi-k2.6', 'minimax'];
+    let customModels = [];
+
+    function renderModels() {
+      const container = document.getElementById('modelsList');
+      container.innerHTML = '';
+
+      availableModels.forEach(m => {
+        const div = document.createElement('div');
+        div.className = 'model-item' + (selectedModels.includes(m.id) ? ' selected' : '');
+        div.innerHTML = `<input type="checkbox" ${selectedModels.includes(m.id) ? 'checked' : ''} onchange="toggleModel('${m.id}')"><div style="display:flex;flex-direction:column;"><span style="font-weight:bold;">${m.name}</span><span style="font-size:0.85em;color:#888;">${m.id}</span></div>`;
+        div.onclick = (e) => { if (e.target.tagName !== 'INPUT') toggleModel(m.id); };
+        container.appendChild(div);
+      });
+
+      customModels.forEach(m => {
+        const div = document.createElement('div');
+        div.className = 'model-item' + (selectedModels.includes(m.id) ? ' selected' : '');
+        div.innerHTML = `<input type="checkbox" ${selectedModels.includes(m.id) ? 'checked' : ''} onchange="toggleCustomModel('${m.id}')"><div style="display:flex;flex-direction:column;"><span style="font-weight:bold;">${m.name}</span><span style="font-size:0.85em;color:#888;">${m.id}</span></div>`;
+        div.onclick = (e) => { if (e.target.tagName !== 'INPUT') toggleCustomModel(m.id); };
+        container.appendChild(div);
+      });
+    }
+
+    function selectAll() {
+      const allIds = availableModels.map(m => m.id).concat(customModels.map(m => m.id));
+      selectedModels = [...new Set([...selectedModels, ...allIds])];
+      renderModels();
+    }
+
+    function deselectAll() {
+      selectedModels = [];
+      renderModels();
+    }
+
+    function toggleModel(id) {
+      if (selectedModels.includes(id)) {
+        selectedModels = selectedModels.filter(m => m !== id);
+      } else {
+        selectedModels.push(id);
+      }
+      renderModels();
+    }
+
+    function toggleCustomModel(id) {
+      if (selectedModels.includes(id)) {
+        selectedModels = selectedModels.filter(m => m !== id);
+      } else {
+        selectedModels.push(id);
+      }
+      renderModels();
+    }
+
+    function addCustomModel() {
+      const t = translations[currentLang];
+      const id = prompt(t.addModelIdPrompt);
+      if (!id) return;
+      const name = prompt(t.addModelNamePrompt, id);
+      if (!name) return;
+      customModels.push({ id, name: name || id });
+      selectedModels.push(id);
+      renderModels();
+    }
+
+    function generateConfig() {
+      const allModels = [...availableModels, ...customModels];
+      const models = {};
+      selectedModels.forEach(id => {
+        const model = allModels.find(m => m.id === id);
+        if (model) models[model.id] = { name: model.name };
+      });
+
+      const config = {
+        "$schema": "https://opencode.ai/config.json",
+        "disabled_providers": [],
+        "provider": {
+          "pollinations": {
+            "name": "Pollinations",
+            "npm": "@ai-sdk/openai-compatible",
+            "options": { "baseURL": "https://gen.pollinations.ai/v1" },
+            "models": models
+          }
+        }
+      };
+
+      document.getElementById('configOutput').textContent = JSON.stringify(config, null, 2);
+      document.getElementById('outputConfig').style.display = 'block';
+    }
+
+    function generateAuth() {
+      const key = document.getElementById('apiKey').value;
+      const auth = {
+        "pollinations": {
+          "type": "api",
+          "key": key
+        }
+      };
+
+      document.getElementById('authOutput').textContent = JSON.stringify(auth, null, 2);
+      document.getElementById('outputAuth').style.display = 'block';
+    }
+
+    function copyConfig() {
+      const text = document.getElementById('configOutput').textContent;
+      navigator.clipboard.writeText(text).then(() => alert(translations[currentLang].copied));
+    }
+
+    function copyAuth() {
+      const text = document.getElementById('authOutput').textContent;
+      navigator.clipboard.writeText(text).then(() => alert(translations[currentLang].copied));
+    }
+
+    function downloadConfig() {
+      const text = document.getElementById('configOutput').textContent;
+      const blob = new Blob([text], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'opencode.jsonc';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function downloadAuth() {
+      const text = document.getElementById('authOutput').textContent;
+      const blob = new Blob([text], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'auth.json';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    renderModels();
+  </script>
+</body>
+</html>
